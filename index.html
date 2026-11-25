@@ -223,6 +223,7 @@ function desenharPainel() {
   const hoje = new Date().toISOString().slice(0, 10);
   const venc = ALL.filter(r => r.prazo_retorno && r.prazo_retorno <= hoje && !["Resolvida", "Orientação prestada"].includes(r.status)).length;
   tela(`<h1>${esc(me.perfil)}: ${esc(me.nome_guerra || "")}</h1>
+  ${me.perfil !== "Supervisor" ? `<button onclick="ir(relatorio)">📥 BAIXAR RELATÓRIO</button>` : ""}
   <div class="grade">${STATUS.map(s => `<button class="${F.status === s ? "" : "sec"}" onclick="filtrar('status','${s}')"><span class="n">${n(s)}</span>${s}</button>`).join("")}
   ${me.perfil !== "Supervisor" ? `<button class="sec" onclick="alert('Demandas com prazo vencido ou para hoje: ${venc}')"><span class="n">${venc}</span>Prazo próximo ou vencido</button>` : ""}</div>
   <h2>Filtros</h2>
@@ -284,6 +285,45 @@ async function A(id, a) {
     else if (a === "reab") { if (!confirm("Reabrir esta demanda?")) return; checar(await up({ status: "Reaberta", resolvida_em: null })); ok = "Demanda reaberta."; }
     detStaff(id, ok);
   } catch (e) { alert(msgErro(e)); }
+}
+
+// ---------- Relatório (Preposto, Chefe, Administrador) ----------
+function relatorio(erro = "") {
+  const hoje = new Date(); let ops = "";
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+    const v = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+    const l = d.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+    ops += `<option value="${v}">${l.charAt(0).toUpperCase() + l.slice(1)}</option>`;
+  }
+  tela(`<h1>Baixar relatório</h1>${erro ? aviso(erro) : ""}
+  <label for="mes">Mês</label><select id="mes">${ops}</select>
+  <h2>Período</h2>
+  <button onclick="baixar('1')">📅 1ª QUINZENA (dia 1 a 15)</button>
+  <button onclick="baixar('2')">📅 2ª QUINZENA (dia 16 ao fim do mês)</button>
+  <button onclick="baixar('m')">📅 MÊS INTEIRO</button>
+  <p class="dica">O arquivo abre no Excel. Ele traz totais por categoria, status e equipe, e a lista de protocolos. Não mostra nome nem matrícula dos vigilantes, nem o texto das reclamações.</p>`);
+}
+async function baixar(t) {
+  const [a, m] = $("#mes").value.split("-").map(Number), mm = String(m).padStart(2, "0");
+  const ini = new Date(a, m - 1, t === "2" ? 16 : 1), fim = t === "1" ? new Date(a, m - 1, 16) : new Date(a, m, 1);
+  const ult = new Date(a, m, 0).getDate();
+  const per = `${t === "2" ? "16" : "01"}/${mm}/${a} a ${t === "1" ? "15" : ult}/${mm}/${a}`;
+  carregando();
+  try {
+    let d = [], p = 0;
+    for (;;) {
+      const r = checar(await sb.from("reclamacoes").select("protocolo,created_at,categoria,status,equipe,resolvida_em").gte("created_at", ini.toISOString()).lt("created_at", fim.toISOString()).order("created_at").range(p, p + 999));
+      d = d.concat(r); if (r.length < 1000) break; p += 1000;
+    }
+    if (!d.length) return relatorio("Não há reclamações neste período.");
+    const cnt = f => { const o = {}; d.forEach(r => { const k = f(r) || "sem equipe"; o[k] = (o[k] || 0) + 1; }); return Object.entries(o); };
+    const L = [["Portal do Vigilante - Relatório de reclamações"], ["Período", per], ["Total de reclamações", d.length], [], ["POR CATEGORIA"], ...cnt(r => r.categoria), [], ["POR STATUS"], ...cnt(r => r.status), [], ["POR EQUIPE"], ...cnt(r => r.equipe), [], ["LISTA"], ["Protocolo", "Data de envio", "Categoria", "Status", "Equipe", "Data da resolução"], ...d.map(r => [r.protocolo, dt(r.created_at).replace(",", ""), r.categoria, r.status, r.equipe || "sem equipe", r.resolvida_em ? dt(r.resolvida_em).replace(",", "") : ""])];
+    const csv = "\ufeff" + L.map(l => l.map(c => `"${String(c).replace(/"/g, '""')}"`).join(";")).join("\r\n");
+    const nome = `relatorio-portal-vigilante-${a}-${mm}-${t === "m" ? "mes-inteiro" : t + "a-quinzena"}.csv`;
+    const x = document.createElement("a"); x.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" })); x.download = nome; document.body.appendChild(x); x.click(); x.remove();
+    tela(`<h1>Relatório pronto</h1>${aviso("Relatório baixado: " + d.length + " reclamação(ões).", "s")}<div class="card">Período: ${per}<br>Arquivo: ${esc(nome)}</div><p class="dica">Procure o arquivo na pasta Downloads. Para enviar ao cliente, anexe-o ao e-mail.</p><button onclick="relatorio()">BAIXAR OUTRO PERÍODO</button>`);
+  } catch (e) { relatorio(msgErro(e)); }
 }
 
 // ---------- Ajuda (passo a passo) ----------
