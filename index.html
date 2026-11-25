@@ -37,6 +37,7 @@ textarea{min-height:130px}
 .cats button{display:flex;align-items:center;gap:16px;text-align:left;font-size:21px}.cats span{font-size:34px}
 .log{border-left:4px solid var(--ouro);padding:2px 0 2px 12px;margin:8px 0}
 a{color:var(--azul);font-weight:700}.centro{text-align:center}
+.passo{display:flex;gap:14px;align-items:flex-start}.num{flex:none;width:44px;height:44px;border-radius:50%;background:var(--azul);color:#fff;font-weight:800;font-size:22px;display:grid;place-items:center}
 </style>
 </head>
 <body>
@@ -79,6 +80,7 @@ function entrada(erro = "") {
   <label for="sen">Senha</label><input id="sen" type="password" autocomplete="current-password">
   <button id="bt" onclick="entrar()">ENTRAR</button>
   <button class="sec" onclick="ir(cadastro)">🔑 CRIAR MEU ACESSO (PRIMEIRO ACESSO)</button>
+  <button class="sec" onclick="ir(ajuda)">❓ COMO USAR (PASSO A PASSO)</button>
   <p class="centro"><a href="#" onclick="ir(esqueci);return false">Esqueci minha senha</a> &nbsp;|&nbsp; <a href="#" onclick="ir(privacidade);return false">Privacidade</a></p>`, { semVoltar: true });
 }
 async function entrar() {
@@ -148,6 +150,7 @@ function inicioVig() {
   tela(`<h1>Olá, ${esc(me.nome_guerra)}</h1>
   <button onclick="ir(categorias)">✍️ FAZER RECLAMAÇÃO</button>
   <button onclick="ir(minhas)">📋 MINHAS RECLAMAÇÕES</button>
+  <button class="sec" onclick="ir(ajuda)">❓ COMO USAR (PASSO A PASSO)</button>
   <button class="sec" onclick="sair()">🚪 SAIR</button>
   <p class="centro"><a href="#" onclick="ir(privacidade);return false">Privacidade</a></p>`, { semVoltar: true });
 }
@@ -281,6 +284,23 @@ async function A(id, a) {
     else if (a === "reab") { if (!confirm("Reabrir esta demanda?")) return; checar(await up({ status: "Reaberta", resolvida_em: null })); ok = "Demanda reaberta."; }
     detStaff(id, ok);
   } catch (e) { alert(msgErro(e)); }
+}
+
+// ---------- Ajuda (passo a passo) ----------
+const AJUDA = {
+  pa: ["Primeiro acesso (só uma vez)", ["Abra o link do portal no navegador do celular.", "Toque em “CRIAR MEU ACESSO (PRIMEIRO ACESSO)”.", "Digite a sua matrícula.", "Escreva o seu nome de guerra, só com letras.", "Toque na sua equipe, a do seu supervisor.", "Crie uma senha com pelo menos 6 caracteres e repita a senha.", "Toque em “CRIAR MEU ACESSO”. Depois é só entrar com matrícula e senha."], "Esqueceu a senha? Procure o seu supervisor."],
+  fr: ["Fazer uma reclamação", ["Entre com a sua matrícula e a sua senha.", "Toque em “FAZER RECLAMAÇÃO”.", "Toque no assunto: pagamento, vale-transporte, vale-alimentação…", "Explique rapidamente o que aconteceu.", "Marque “Confirmo que as informações são verdadeiras.”", "Toque em “ENVIAR RECLAMAÇÃO” e anote o protocolo."], "O seu supervisor é o primeiro a ajudar."],
+  vr: ["Ver a resposta", ["Entre e toque em “MINHAS RECLAMAÇÕES”.", "Toque na reclamação para abrir.", "Leia a orientação do supervisor ou a resposta final.", "Se o problema não foi resolvido, toque em “O PROBLEMA NÃO FOI RESOLVIDO”."], "Só você, o seu supervisor, o Preposto e a administração veem a sua reclamação."]
+};
+function ajuda() {
+  tela(`<h1>Como usar</h1><p class="dica">Escolha o que você quer saber:</p>
+  <button onclick="ir(()=>ajudaTela('pa'))">1. PRIMEIRO ACESSO</button>
+  <button onclick="ir(()=>ajudaTela('fr'))">2. FAZER UMA RECLAMAÇÃO</button>
+  <button onclick="ir(()=>ajudaTela('vr'))">3. VER A RESPOSTA</button>`);
+}
+function ajudaTela(k) {
+  const [t, passos, nota] = AJUDA[k];
+  tela(`<h1>${esc(t)}</h1>${passos.map((p, i) => `<div class="card passo"><span class="num">${i + 1}</span><span>${esc(p)}</span></div>`).join("")}<div class="card"><b>${esc(nota)}</b></div>`);
 }
 
 // ---------- Privacidade ----------
