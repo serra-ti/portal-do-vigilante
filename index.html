@@ -77,7 +77,8 @@ function entrada(erro = "") {
   me = null; pilha = [entrada];
   tela(`<h1>Entrar</h1>${erro ? aviso(erro) : ""}
   <label for="mat">Matrícula</label><input id="mat" autocomplete="username" inputmode="text" autocapitalize="off">
-  <label for="sen">Senha</label><input id="sen" type="password" autocomplete="current-password">
+  <label for="sen">Senha</label><input id="sen" type="password" data-pw autocomplete="current-password">
+  <label class="chk"><input type="checkbox" onchange="mostrar(this)"> Mostrar a senha</label>
   <button id="bt" onclick="entrar()">ENTRAR</button>
   <button class="sec" onclick="ir(cadastro)">🔑 CRIAR MEU ACESSO (PRIMEIRO ACESSO)</button>
   <button class="sec" onclick="ir(ajuda)">❓ COMO USAR (PASSO A PASSO)</button>
@@ -98,11 +99,12 @@ async function abrirSessao() {
   const d = checar(await sb.rpc("meu_perfil"));
   if (!d || !d.length) { await sb.auth.signOut(); return entrada("Acesso não autorizado. Procure a supervisão."); }
   me = d[0];
+  if (me.trocar_senha) return raiz(() => trocarSenha(true));
   raiz(me.perfil === "Vigilante" ? inicioVig : painel);
 }
 async function sair() { await sb.auth.signOut(); entrada(); }
 function esqueci() {
-  tela(`<h1>Esqueci minha senha</h1><div class="card">Procure o seu supervisor ou o administrador responsável. Eles farão a redefinição segura do seu acesso.</div>`);
+  tela(`<h1>Esqueci minha senha</h1><div class="card">Procure o seu supervisor. Ele gera uma senha provisória para você. Ao entrar com ela, o portal pede para você criar uma senha nova, só sua.</div>`);
 }
 
 // ---------- Primeiro acesso ----------
@@ -120,8 +122,9 @@ async function cadastro(erro = "", v = {}) {
   <p class="dica">Informe o nome pelo qual é conhecido no posto.</p>
   <label>Em qual equipe você trabalha?</label>
   ${Object.keys(g).map(e => `<label class="chk card"><input type="radio" name="eq" value="${esc(e)}" ${v.e === e ? "checked" : ""}><span>${esc(e)}<br><span class="dica">Supervisores: ${g[e].map(x => esc(x.matricula) + (x.nome_guerra ? " – " + esc(x.nome_guerra) : "")).join(" · ")}</span></span></label>`).join("") || `<p class="dica">Nenhuma equipe cadastrada. Procure a supervisão.</p>`}
-  <label for="s1">Criar senha (mínimo 6 caracteres)</label><input id="s1" type="password" autocomplete="new-password">
-  <label for="s2">Confirmar senha</label><input id="s2" type="password" autocomplete="new-password">
+  <label for="s1">Criar senha (mínimo 6 caracteres)</label><input id="s1" type="password" data-pw autocomplete="new-password">
+  <label for="s2">Confirmar senha</label><input id="s2" type="password" data-pw autocomplete="new-password">
+  <label class="chk"><input type="checkbox" onchange="mostrar(this)"> Mostrar a senha</label>
   <button id="bt" onclick="criarAcesso()">CRIAR MEU ACESSO</button>`);
 }
 async function criarAcesso() {
@@ -151,6 +154,7 @@ function inicioVig() {
   <button onclick="ir(categorias)">✍️ FAZER RECLAMAÇÃO</button>
   <button onclick="ir(minhas)">📋 MINHAS RECLAMAÇÕES</button>
   <button class="sec" onclick="ir(ajuda)">❓ COMO USAR (PASSO A PASSO)</button>
+  <button class="sec" onclick="ir(() => trocarSenha(false))">🔒 TROCAR MINHA SENHA</button>
   <button class="sec" onclick="sair()">🚪 SAIR</button>
   <p class="centro"><a href="#" onclick="ir(privacidade);return false">Privacidade</a></p>`, { semVoltar: true });
 }
@@ -232,7 +236,7 @@ function desenharPainel() {
   <input id="fq" placeholder="Matrícula ou nome de guerra" value="${esc(F.q)}" oninput="F.q=this.value;lista()" style="margin-top:8px">
   <label for="fd">De</label><input id="fd" type="date" value="${F.de || ""}" onchange="F.de=this.value;lista()">
   <label for="fa">Até</label><input id="fa" type="date" value="${F.ate || ""}" onchange="F.ate=this.value;lista()">
-  <div id="lista"></div><button class="sec" onclick="painel()">ATUALIZAR</button><button class="sec" onclick="sair()">SAIR</button>
+  <div id="lista"></div>${me.perfil !== "Chefe" ? `<button class="sec" onclick="ir(redefinir)">🔑 REDEFINIR SENHA DE UM VIGILANTE</button>` : ""}<button class="sec" onclick="ir(() => trocarSenha(false))">🔒 TROCAR MINHA SENHA</button><button class="sec" onclick="painel()">ATUALIZAR</button><button class="sec" onclick="sair()">SAIR</button>
   <p class="centro"><a href="#" onclick="ir(privacidade);return false">Privacidade</a></p>`, { semVoltar: true });
   lista();
 }
@@ -285,6 +289,55 @@ async function A(id, a) {
     else if (a === "reab") { if (!confirm("Reabrir esta demanda?")) return; checar(await up({ status: "Reaberta", resolvida_em: null })); ok = "Demanda reaberta."; }
     detStaff(id, ok);
   } catch (e) { alert(msgErro(e)); }
+}
+
+// ---------- Senha ----------
+const mostrar = c => document.querySelectorAll("[data-pw]").forEach(i => i.type = c.checked ? "text" : "password");
+function trocarSenha(forcada, erro = "") {
+  tela(`<h1>${forcada ? "Crie a sua senha nova" : "Trocar minha senha"}</h1>${forcada ? `<p>Você entrou com uma senha provisória. Crie uma senha só sua.</p>` : ""}${erro ? aviso(erro) : ""}
+  <label for="n1">Senha nova (mínimo 6 caracteres)</label><input id="n1" type="password" data-pw autocomplete="new-password">
+  <label for="n2">Repita a senha nova</label><input id="n2" type="password" data-pw autocomplete="new-password">
+  <label class="chk"><input type="checkbox" onchange="mostrar(this)"> Mostrar a senha</label>
+  <button id="bt" onclick="salvarSenha(${forcada ? "true" : "false"})">SALVAR SENHA NOVA</button>`, { semVoltar: !!forcada });
+}
+async function salvarSenha(f) {
+  const a = $("#n1").value, b = $("#n2").value;
+  if (a.length < 6) return trocarSenha(f, "A senha deve ter pelo menos 6 caracteres.");
+  if (a !== b) return trocarSenha(f, "As senhas não são iguais.");
+  $("#bt").disabled = true;
+  try {
+    const { error } = await sb.auth.updateUser({ password: a });
+    if (error) return trocarSenha(f, /fetch|network/i.test(error.message) ? msgErro(error) : "Escolha uma senha diferente da anterior.");
+    checar(await sb.rpc("senha_trocada"));
+    me.trocar_senha = false;
+    tela(`<h1>Pronto</h1>${aviso("Senha alterada com sucesso.", "s")}<button onclick="raiz(${me.perfil === "Vigilante" ? "inicioVig" : "painel"})">CONTINUAR</button>`, { semVoltar: true });
+  } catch (e) { trocarSenha(f, msgErro(e)); }
+}
+function redefinir(erro = "") {
+  tela(`<h1>Redefinir senha</h1>${erro ? aviso(erro) : ""}
+  <p class="dica">Digite a matrícula do vigilante que esqueceu a senha.</p>
+  <label for="rm">Matrícula</label><input id="rm" autocapitalize="off">
+  <button onclick="redefinirConf()">CONTINUAR</button>`);
+}
+async function redefinirConf() {
+  const m = $("#rm").value.trim();
+  if (!m) return redefinir("Digite a matrícula.");
+  carregando();
+  try {
+    const r = checar(await sb.from("vigilantes_autorizados").select("matricula,nome_guerra,equipe").eq("matricula", m).maybeSingle());
+    if (!r) return redefinir("Matrícula não encontrada na sua equipe.");
+    tela(`<h1>Confirmar</h1><div class="card"><b>${esc(r.nome_guerra || "(ainda sem nome de guerra)")}</b><br>Matrícula ${esc(r.matricula)} · ${esc(r.equipe || "sem equipe")}</div><p>Gerar uma senha provisória para este vigilante?</p><button class="risco" onclick="redefinirOk('${esc(r.matricula)}')">SIM, GERAR SENHA PROVISÓRIA</button>`);
+  } catch (e) { redefinir(msgErro(e)); }
+}
+async function redefinirOk(m) {
+  carregando();
+  try {
+    const pw = checar(await sb.rpc("redefinir_senha", { p_matricula: m }));
+    tela(`<h1>Senha provisória</h1>${aviso("Senha gerada com sucesso.", "s")}<div class="card centro"><span class="dica">Matrícula ${esc(m)}</span><br><b style="font-size:44px;letter-spacing:.15em">${esc(pw)}</b></div><p>Passe esta senha ao vigilante. <b>Ela aparece só agora.</b> Ao entrar, ele criará uma senha nova.</p><button onclick="raiz(painel)">CONCLUIR</button>`, { semVoltar: true });
+  } catch (e) {
+    const t = e?.message || "";
+    redefinir(/sem_conta/.test(t) ? "Este vigilante ainda não criou o acesso. Ele deve fazer o primeiro acesso." : /sem_permissao/.test(t) ? "Você não pode redefinir a senha desta matrícula." : msgErro(e));
+  }
 }
 
 // ---------- Relatório (Preposto, Chefe, Administrador) ----------
